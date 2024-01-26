@@ -1,14 +1,10 @@
+name: sample_demo(date:yyyy:MM:dd)$(Rev:r)
 trigger:
-- main
-
+ - Main
 pool:
-  vmImage: ubuntu-latest
+ name: Default
 steps:
-- task: UsePythonVersion@0
-  inputs:
-    versionSpec: '3.7'
-  displayName: 'Use Python 3.7'
-
-- script: |
-    python -m pip install --upgrade pip
-  displayName: 'Install dependencies'
+ - task: VSBuild@1
+   inputs:
+     solution: '**\*.sln'
+     msbuildArgs: '''/p:DeployOnBuild=true /p:WebPublishMethod=Package   /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactstagingdirectory)\\"'''
