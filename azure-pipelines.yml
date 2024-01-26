@@ -1,4 +1,4 @@
-name: sample_demo(date:yyyyMMdd)$(Rev:r)
+name: sample_demo_$(Date:yyyyMMdd)$(Rev:r)
 trigger:
  - Main
 pool:
