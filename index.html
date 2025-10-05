@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historia Clínica con IA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary-green: #22c55e;
+            --dark-green: #15803d;
+            --medium-green: #4ade80;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0fdf4;
+            min-height: 100vh;
+        }
+        .text-gradient {
+            background-image: linear-gradient(to right, var(--primary-green), var(--dark-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        [contenteditable="true"]:focus {
+            background-color: #fef9c3;
+            outline: 2px solid #facc15;
+            border-radius: 4px;
+            padding: 2px;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center p-6 sm:p-12">
+    <div class="w-full max-w-4xl">
+        <header class="flex justify-between items-center pb-6 border-b-2 border-gray-200 mb-8">
+            <h1 class="text-3xl font-extrabold text-gradient">
+                Asistente de Historias Clínicas
+            </h1>
+            <div class="flex items-center space-x-4">
+                <span class="text-sm font-medium text-gray-600">Hola, {{ username }}</span>
+                <a href="{{ url_for('logout') }}"
+                   class="py-2 px-4 text-sm font-medium text-red-600 bg-red-100 rounded-lg hover:bg-red-200 transition duration-200">
+                    Cerrar Sesión
+                </a>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <section class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-6">Grabar Audio de la Consulta</h2>
+                <div class="flex flex-col items-center space-y-4">
+                    <div class="flex space-x-4 w-full">
+                        <button id="startRecording"
+                                class="flex-1 py-4 px-6 text-lg font-bold text-white bg-[var(--primary-green)] rounded-xl shadow-lg transition duration-200 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[var(--medium-green)] focus:ring-opacity-50">
+                            Iniciar Grabación
+                        </button>
+                        <button id="stopRecording" disabled
+                                class="flex-1 py-4 px-6 text-lg font-bold text-white bg-gray-400 rounded-xl shadow-lg transition duration-200 disabled:transform-none disabled:opacity-50">
+                            Detener Grabación
+                        </button>
+                    </div>
+                    <div id="recordingStatus" class="text-gray-500 font-medium mt-4">
+                        Pulsa 'Iniciar Grabación' para empezar.
+                    </div>
+                    <div id="tokensDisplay" class="bg-gray-100 p-4 rounded-xl border border-gray-200 w-full hidden">
+                        <span class="text-sm font-medium text-gray-700">Valor consumido: </span>
+                        <span class="font-bold text-gray-800" id="tokensValue">0</span>
+                    </div>
+                </div>
+
+                <div class="mt-8">
+                    <div id="loadingMessage" class="mt-4 text-center text-gray-600 hidden">
+                        <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"
+                             role="status">
+                            <span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Cargando...</span>
+                        </div>
+                        <p class="mt-2">Procesando audio y generando historia clínica...</p>
+                    </div>
+                    <div id="errorMessage" class="mt-4 text-center hidden"></div>
+                </div>
+            </section>
+            
+            <section class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg space-y-4">
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-800">Información Adicional</h2>
+                
+                <div>
+                    <label for="episodio" class="block text-sm font-medium text-gray-700">Episodio</label>
+                    <input type="text" id="episodio" name="episodio" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                </div>
+                
+                <div>
+                    <label for="especialidad" class="block text-sm font-medium text-gray-700">Especialidad</label>
+                    <input type="text" id="especialidad" name="especialidad" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                </div>
+                
+                <div>
+                    <label for="campo3" class="block text-sm font-medium text-gray-700">Título 3</label>
+                    <input type="text" id="campo3" name="campo3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                </div>
+                
+                <div>
+                    <label for="campo4" class="block text-sm font-medium text-gray-700">Título 4</label>
+                    <input type="text" id="campo4" name="campo4" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                </div>
+            </section>
+            
+            <section class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg md:col-span-2">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl sm:text-2xl font-bold text-gray-800">Resultados de la IA</h2>
+                    <button id="exportJsonButton" class="hidden py-2 px-4 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition duration-200">
+                        Exportar JSON
+                    </button>
+                </div>
+                <div id="resultsContainer" class="space-y-6">
+                    <p class="text-gray-500">Los resultados de la historia clínica y los diagnósticos aparecerán aquí.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+        <script>
+            // --- REFERENCIA AL NUEVO BOTÓN ---
+            const exportJsonButton = document.getElementById('exportJsonButton');
+            
+            // --- Resto de las referencias a elementos ---
+            const startButton = document.getElementById('startRecording');
+            const stopButton = document.getElementById('stopRecording');
+            const recordingStatus = document.getElementById('recordingStatus');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const loadingMessage = document.getElementById('loadingMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            const tokensDisplay = document.getElementById('tokensDisplay');
+            const tokensValueSpan = document.getElementById('tokensValue');
+            let currentRecordingId = null;
+
+            startButton.addEventListener('click', async () => {
+                try {
+                    startButton.disabled = true;
+                    stopButton.disabled = false;
+                    recordingStatus.textContent = 'Grabando en el servidor...';
+                    displayError('');
+                    resultsContainer.innerHTML = '<p class="text-gray-500">Los resultados de la historia clínica y los diagnósticos aparecerán aquí.</p>';
+                    tokensDisplay.classList.add('hidden');
+                    exportJsonButton.classList.add('hidden'); // Ocultar botón al iniciar
+
+                    const response = await fetch('/start_recording', { method: 'POST' });
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        currentRecordingId = data.recording_id;
+                        console.log("Grabación iniciada en el servidor con ID:", currentRecordingId);
+                    } else {
+                        displayError(data.error || 'Error al iniciar la grabación en el servidor.');
+                        startButton.disabled = false;
+                        stopButton.disabled = true;
+                        recordingStatus.textContent = 'Pulsa \'Iniciar Grabación\' para empezar.';
+                    }
+                } catch (error) {
+                    console.error('Error al iniciar la grabación:', error);
+                    displayError('Error de conexión con el servidor. Inténtalo de nuevo.');
+                    startButton.disabled = false;
+                    stopButton.disabled = true;
+                    recordingStatus.textContent = 'Pulsa \'Iniciar Grabación\' para empezar.';
+                }
+            });
+
+            stopButton.addEventListener('click', async () => {
+                if (!currentRecordingId) {
+                    displayError("No hay una grabación activa para detener.");
+                    return;
+                }
+
+                startButton.disabled = true;
+                stopButton.disabled = true;
+                recordingStatus.textContent = 'Grabación detenida. Procesando audio...';
+                loadingMessage.classList.remove('hidden');
+                exportJsonButton.classList.add('hidden'); // Ocultar botón mientras carga
+
+                try {
+                    const response = await fetch(`/stop_recording/${currentRecordingId}`, {
+                        method: 'POST'
+                    });
+
+                    const result = await response.json(); 
+                    
+                    if (response.ok) {
+                        displayResults(result); 
+                    } else {
+                        displayError(result.error || 'Error desconocido al procesar el audio.');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    displayError('Error al detener la grabación. Inténtalo de nuevo.');
+                } finally {
+                    currentRecordingId = null;
+                    startButton.disabled = false;
+                    stopButton.disabled = true;
+                    recordingStatus.textContent = 'Pulsa \'Iniciar Grabación\' para empezar.';
+                    loadingMessage.classList.add('hidden');
+                }
+            });
+
+            function displayResults(result) {
+                resultsContainer.innerHTML = ''; 
+
+                // --- MODIFICACIÓN: Añadir data-key para identificar cada campo ---
+                const createSectionCard = (key, title, content, color = 'green') => {
+                    const card = document.createElement('div');
+                    card.className = `bg-${color}-50 p-5 rounded-xl border border-${color}-200`;
+                    // Se añade data-key al contenedor de la tarjeta
+                    card.innerHTML = `
+                        <h3 class="text-lg font-bold text-${color}-800 mb-3">${title}</h3>
+                        <div class="text-gray-800 space-y-2 text-sm" data-section-key="${key}">${content}</div>
+                    `;
+                    resultsContainer.appendChild(card);
+                };
+                
+                const formatObjectContent = (obj, parentKey) => {
+                    return Object.entries(obj).map(([key, value]) => 
+                        // Se añade data-key a cada valor
+                        `<p><strong class="font-semibold text-gray-900">${key.replace(/_/g, ' ')}:</strong> <span contenteditable="true" data-key="${parentKey}.${key}">${value}</span></p>`
+                    ).join('');
+                };
+
+                const sections = {
+                    "MOT_CONSULTA": "Motivo de Consulta", "ENF_ACTUAL": "Enfermedad Actual", "ANALISIS_Y_PLAN": "Análisis y Plan",
+                    "PARACLINICOS_REALIZADOS": "Paraclínicos Realizados", "HALLAZGOS_CLINICOS": "Hallazgos Clínicos"
+                };
+
+                for (const key in sections) {
+                    if (result[key]) {
+                        // Se añade data-key al párrafo
+                        createSectionCard(key, sections[key], `<p class="whitespace-pre-wrap" contenteditable="true" data-key="${key}">${result[key]}</p>`);
+                    }
+                }
+
+                const complexObjects = {"DATOS_GENERALES": "Datos Generales", "ANTECEDENTES": "Antecedentes", "EXAMEN_FISICO": "Examen Físico"};
+                for (const key in complexObjects) {
+                    if (result[key]) {
+                        let contentHtml = Object.entries(result[key]).map(([subKey, subValue]) => {
+                            let subContent = '';
+                            if (typeof subValue === 'object' && subValue !== null) {
+                                subContent = `<div class="pl-4 mt-1">${formatObjectContent(subValue, `${key}.${subKey}`)}</div>`;
+                            } else {
+                                // Se añade data-key al span
+                                subContent = `<span class="font-normal" contenteditable="true" data-key="${key}.${subKey}">${subValue}</span>`;
+                            }
+                            return `<div class="mt-1"><strong class="font-semibold text-gray-900">${subKey.replace(/_/g, ' ')}:</strong> ${subContent}</div>`;
+                        }).join('');
+                        createSectionCard(key, complexObjects[key], contentHtml);
+                    }
+                }
+                
+                if (result.MEDS && result.MEDS.length > 0) {
+                    let contentHtml = `<ul class="list-disc list-inside">${result.MEDS.map((med, index) => 
+                        // Se añade data-key a cada medicamento
+                        `<li contenteditable="true" data-key="MEDS.${index}">${med}</li>`).join('')}</ul>`;
+                    createSectionCard("MEDS", "Medicamentos", contentHtml, 'blue');
+                }
+
+                if (result.DXS && result.DXS.length > 0) {
+                    let contentHtml = `<ul class="list-disc list-inside space-y-1">${result.DXS.map((dx, index) => 
+                        // Se añade data-key a cada diagnóstico (cie10 y descripción)
+                        `<li><strong class="font-semibold" contenteditable="true" data-key="DXS.${index}.cie10">${dx.cie10}:</strong> <span contenteditable="true" data-key="DXS.${index}.descripcion">${dx.descripcion}</span></li>`
+                    ).join('')}</ul>`;
+                    createSectionCard("DXS", "Diagnósticos (CIE-10)", contentHtml, 'yellow');
+                }
+
+                if (resultsContainer.innerHTML === '') {
+                    resultsContainer.innerHTML = '<p class="text-gray-500">No se encontraron datos para mostrar.</p>';
+                } else {
+                    exportJsonButton.classList.remove('hidden'); // Mostrar botón si hay resultados
+                }
+
+                if (result.tokens !== undefined) {
+                    tokensDisplay.classList.remove('hidden');
+                    tokensValueSpan.textContent = result.tokens;
+                }
+            }
+
+            function displayError(message) {
+                if (message) {
+                    errorMessage.classList.remove('hidden');
+                    errorMessage.className = 'bg-red-50 p-4 rounded-lg text-red-800 font-medium';
+                    errorMessage.innerHTML = `<p>Error: ${message}</p>`;
+                } else {
+                    errorMessage.classList.add('hidden');
+                }
+            }
+            // --- NUEVA FUNCIÓN Y EVENT LISTENER PARA EXPORTAR ---
+            exportJsonButton.addEventListener('click', async () => {
+                exportJsonButton.disabled = true;
+                exportJsonButton.textContent = 'Guardando...';
+
+                // Creamos un objeto para contener todos los datos
+                const allData = {};
+
+                // 1. Añadimos los campos de texto del formulario
+                allData.episodio = document.getElementById('episodio').value.trim();
+                allData.especialidad = document.getElementById('especialidad').value.trim();
+                allData.campo3 = document.getElementById('campo3').value.trim();
+                allData.campo4 = document.getElementById('campo4').value.trim();
+                console.log("Datos antes de enviar:", allData);
+
+                // 2. Recolectamos los datos editables de los resultados de la IA
+                const correctedClinicalHistory = {};
+                document.querySelectorAll('[data-key]').forEach(element => {
+                    const keyPath = element.dataset.key.split('.');
+                    let currentLevel = correctedClinicalHistory;
+
+                    keyPath.forEach((key, index) => {
+                        if (index === keyPath.length - 1) {
+                            if (keyPath[0] === 'DXS' && keyPath.length === 3) {
+                                const dxIndex = parseInt(keyPath[1]);
+                                if (!currentLevel[dxIndex]) currentLevel[dxIndex] = {};
+                                currentLevel[dxIndex][key] = element.textContent.trim();
+                            } else if (!isNaN(parseInt(key))) {
+                                currentLevel[parseInt(key)] = element.textContent.trim();
+                            } else {
+                                currentLevel[key] = element.textContent.trim();
+                            }
+                        } else {
+                            if (!currentLevel[key]) {
+                                const nextKey = keyPath[index + 1];
+                                currentLevel[key] = (key === 'MEDS' || key === 'DXS') ? [] : {};
+                            }
+                            currentLevel = currentLevel[key];
+                        }
+                    });
+                });
+
+                // 3. Unimos los resultados editables al objeto principal
+                Object.assign(allData, correctedClinicalHistory);
+
+                // --- ENVIAR DATOS AL SERVIDOR FLASK USANDO FETCH ---
+                try {
+                    const response = await fetch('/save_corrected_json', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(allData)
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        alert('¡Éxito! El JSON corregido fue guardado en el servidor.');
+                        console.log('Respuesta del servidor:', result);
+                    } else {
+                        throw new Error(result.message || 'Error al guardar los datos.');
+                    }
+
+                } catch (error) {
+                    console.error('Error al enviar el JSON:', error);
+                    alert('Hubo un error al guardar los datos en el servidor. Revisa la consola.');
+                } finally {
+                    exportJsonButton.disabled = false;
+                    exportJsonButton.textContent = 'Exportar JSON';
+                }
+            });
+
+        </script>
+</body>
+</html>
